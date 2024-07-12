@@ -48,6 +48,7 @@ Creates a array in memory each byte of whom is a random 8bit value. Then creates
 < frame | packet indice | data >
 The sizes vary according to parameters of the experiment -and the program. (goto **2**)
 ###### eBPF.XDP Program
+##### 4
 Receives a cumulative Ack packet or a NACK packet.
 - Cumulative ack packets are sent as individual ack packets to the userspace program thru a eBPF ring buffer. (goto **to be cont...**)
 ##### Receiver
