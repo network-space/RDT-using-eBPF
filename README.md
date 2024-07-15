@@ -11,6 +11,9 @@ TODO: Will be for the generic use of the system.
 ### ven (virtual ethernet)
 A version of the system for experimenting on virtual ethernet pairs.
 
+## en-en (ethernet-ethernet)
+A version of the system for ethernet-ethernet connection between 2 PCs.
+
 ## The Reliable Communication System
 First of all, please note that this system is not stabilized yet. But here is the current description of how the system works:
 
