@@ -48,7 +48,7 @@ int main(int arc, char** ars)
 	int sockfd;
 	struct ifreq ifr;
 	struct sockaddr_ll sa;
-	unsigned char a14(reb, 1+acc), a14(seb, pds+1);
+	unsigned char seb[pds+1+1], reb[acc+1+1];	//se(nd) / re(ceive) b(uffer) 
 
 	// Create a raw socket
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
@@ -58,7 +58,7 @@ int main(int arc, char** ars)
 
 	// Specify the interface to use
 	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, "ven1", IFNAMSIZ - 1); // Change "ven1" to your interface name
+	strncpy(ifr.ifr_name, "eth0", IFNAMSIZ - 1); // Change "eth0" to your interface name
 	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
 		perror("ioctl");
 		close(sockfd);
@@ -80,7 +80,8 @@ int main(int arc, char** ars)
 	sa.sll_addr[5] = 0xFF;
 
 	// Construct Ethernet frame (14 bytes: 6 bytes dest MAC, 6 bytes src MAC, 2 bytes ethertype)
-	memset(seb, 0, sizeof(seb));
+	memset(seb, 0, sizeof(seb));	seb[0]=1;	//our protocol
+	memset(reb, 0, sizeof(reb));
 
 	u char f[pcif][pds];
 		
@@ -100,22 +101,22 @@ int main(int arc, char** ars)
 		for (u char pti=0; pti<pcif; pti++)
 		{
 			fa[pti]=0;
-			seb[0]=pti;
+			seb[1]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[1+pdi]=f[pti][pdi];
+			for (; pdi<pds; pdi++)	seb[2+pdi]=f[pti][pdi];
 			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
 		}
 
 		c:
 		//receive acks
 		ssize_t num_bytes = recvfrom(sockfd, reb, ETH_FRAME_LEN, 0, NULL, NULL);
-		if (num_bytes)	for (u char aci=0; aci<reb[0]; aci++)	fa[reb[1+aci]] = 1, p("received");
+		if (num_bytes && *reb)	for (u char aci=0; aci<reb[1]; aci++)	fa[reb[2+aci]] = 1, p("received");
 
 		for (u char pti=0; pti<pcif; pti++)	if (!fa[pti])
 		{
-			seb[0]=pti;
+			seb[1]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[1+pdi]=f[pti][pdi];
+			for (; pdi<pds; pdi++)	seb[2+pdi]=f[pti][pdi];
 			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
 			goto c;
 		}
@@ -128,7 +129,7 @@ int main(int arc, char** ars)
 	return 0;
 }
 /*
-sudo ip netns exec n1 ip link set dev ven1 xdpgeneric off
+sudo ip link set dev eth0 xdpgeneric off
 clang _S.c -o _S -lbpf -fno-builtin
-e n1 ./_S 
+sudo ./_S 
 */

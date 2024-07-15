@@ -36,7 +36,7 @@ int main(int arc, char** ars)
 	int sockfd;
 	struct ifreq ifr;
 	struct sockaddr_ll sa;
-	unsigned char a14(reb, 100), a14(seb, acc+1);	//se(nd) / re(ceive) b(uffer) 
+	unsigned char reb[pds+1+1], seb[acc+1];	//se(nd) / re(ceive) b(uffer) 
 
 	// Create a raw socket
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
@@ -68,7 +68,7 @@ int main(int arc, char** ars)
 	sa.sll_addr[5] = 0xFF;
 
 	// Construct Ethernet frame (14 bytes: 6 bytes dest MAC, 6 bytes src MAC, 2 bytes ethertype)
-	memset(seb, 0, sizeof(seb));
+	memset(seb, 0, sizeof(seb));	seb[0]=1;	//our protocol
 	memset(reb, 0, sizeof(reb));
 
 	printf("Listening on interface %s\n", ifr.ifr_name);
@@ -79,27 +79,25 @@ int main(int arc, char** ars)
 		u char ptc=0;	//reset ptc to be able to send partyaial cumulative acks
 		c:
 		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, NULL, NULL);
-		
-			p("debug %zu\n", sizeof(reb));
 		if (num_bytes==-1)	p("recvfrom error.\n");
-		if (num_bytes)
+		if (num_bytes && *reb)
 		{
-			struct ts t;	tai(t);
 			p("debug %zu\n", sizeof(reb));
 					p("debug: accessed reb");
-					for (u char *ucp=reb; ucp<reb+100; ucp++)	p(" %hhu", *ucp);
+					for (u char *ucp=reb; ucp<reb+sizeof(reb); ucp++)	p(" %hhu", *ucp);
 					p("\n");
+			struct ts t;	tai(t);
 			p("%hhu. packet came at \t\t\t\t%ld%ld\n", reb[0], t.tv_sec, t.tv_nsec);
-			seb[1+seb[0]] = reb[0];
-			ptc++, seb[0]++;
-			if (seb[0] >= acc || ptc==pcif)	//sending cumulative ack with dynamic size
+			seb[2+seb[1]] = reb[1];
+			ptc++, seb[1]++;
+			if (seb[1] >= acc || ptc==pcif)	//sending cumulative ack with dynamic size
 			{
 				p(" cumulative ack ssent\n");
 				sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
-				seb[0]=0;
+				seb[1]=0;
 			}
-			for (u char pdi=0; pdi<pds; pdi++)	f[reb[0]][pdi]=reb[1+pdi];
-			fr[reb[0]] = 1;
+			for (u char pdi=0; pdi<pds; pdi++)	f[reb[1]][pdi]=reb[2+pdi];
+			fr[reb[1]] = 1;
 		}
 		for (u char pti=0; pti<pcif; pti++)	if (!fr[pti])	goto c;
 		
