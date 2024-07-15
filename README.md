@@ -1,5 +1,5 @@
 # RDT using eBPF - *ven* branch
-This branch is for the virtual ethernet pair (veth pair) [v(irtual)e(ther)n(et)] experimentation. So that means *main* branch will be for the generic use.
+This branch is for the ethernet-ethernet experimentation.
 
 **reliable data transfer using extended Berkeley Packet Filter**
 
