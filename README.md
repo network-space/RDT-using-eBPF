@@ -42,7 +42,7 @@ A version of the system for ethernet-ethernet connection between 2 PCs.
 #### Components
 The components are explained in steps 1,2,3,4... Follow them for easier understanding of each path. 
 ##### Sender
-###### Userspace Program
+###### Userspace Program (SU.c)
 ##### 1
 Creates a array in memory each byte of whom is a random 8bit value. Then creates a packet buffer and fills it with data that will not change over packets. Sends the file in packets defined as:
 < frame | packet indice | data >
@@ -54,17 +54,17 @@ The sizes vary according to parameters of the experiment -and the program. (goto
 3. If a NACK packet has come; unset the packet indice if it has been set as acknowledged.
 3. Then traverse the packets to see if any non-acknowledged packet remains, if so, goto 1. Else, the transfer has been finished.
 
-###### eBPF.XDP Program
+###### eBPF.XDP Program (SKI.c)
 ##### 4
 Receives a cumulative Ack packet or a NACK packet.
 - Cumulative ack packets are sent as individual ack packets to the userspace program thru a eBPF ring buffer. (goto **5**)
 - NACK packets are sent as-is to the userspace thru the same eBPF ring buffer. (goto **6**)
 
 ##### Receiver
-###### eBPF.XDP Program
+###### eBPF.XDP Program (RK.c)
 ##### 2
 If the packet is interested, first delivers the packet to the userspace using eBPF ring buffers. (goto **3**) Then if cumulative Ack count is reached, manipulates the packet so that the packet becomes a cumulative Ack packet. Using XDP_TX, sends the ack packet to the sender. (goto **4**)
-###### Userspace Program
+###### Userspace Program (RU.c)
 ##### 3
 Receives packets from ring buffer. Sometimes the ring buffer sends partial information of a packet. So the size of the ring buffer is not enough. If it detects this, sends a NACK message to the sender for the specific packet. (goto **4**) Else, stores the packet.
 
