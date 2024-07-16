@@ -15,11 +15,8 @@ A version of the system for experimenting on virtual ethernet pairs.
 A version of the system for ethernet-ethernet connection between 2 PCs.
 
 ## The Reliable Communication System
-First of all, please note that this system is not stabilized yet. But here is the current description of how the system works:
 
-- The proposed system has 4 components and 2 headers. For comparison, 2 additional components in userspace exist.
-
-### Proposed System
+### Proposed System: the *Main* Version that is Utilizing eBPF
 
 #### most important Meta-Parameters
 - **pts**: how many bytes of file is embedded inside a packet
@@ -71,4 +68,5 @@ If the packet is interested, first delivers the packet to the userspace using eB
 ##### 3
 Receives packets from ring buffer. Sometimes the ring buffer sends partial information of a packet. So the size of the ring buffer is not enough. If it detects this, sends a NACK message to the sender for the specific packet. (goto **4**) Else, stores the packet.
 
-
+### Proposed System: a Version that is Not Utilizing eBPF
+To be continued...
