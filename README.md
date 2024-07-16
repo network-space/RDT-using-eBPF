@@ -52,10 +52,10 @@ Creates a array in memory each byte of whom is a random 8bit value. Then creates
 The sizes vary according to parameters of the experiment -and the program. (goto **2**) Then enters a loop iterations of whose are as follows:
 1. Check if any Ack or Nack packet has come.
 ##### 5
-1. If a Ack packet has come; set the packet indice as acknowledged.
+2. If a Ack packet has come; set the packet indice as acknowledged.
 ##### 6
-1. If a NACK packet has come; unset the packet indice if it has been set as acknowledged.
-1. Then traverse the packets to see if any non-acknowledged packet remains, if so, goto 1. Else, the transfer has been finished.
+3. If a NACK packet has come; unset the packet indice if it has been set as acknowledged.
+3. Then traverse the packets to see if any non-acknowledged packet remains, if so, goto 1. Else, the transfer has been finished.
 
 ###### eBPF.XDP Program
 ##### 4
