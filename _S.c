@@ -2,15 +2,6 @@
 //No nacks
 #include "us.h"
 
-//network send/receive...
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <linux/if.h>
-#include <netinet/if_ether.h>
-#include <linux/if_packet.h>
-#include <arpa/inet.h>
-
 #include <time.h>
 #define tai(var) clock_gettime(CLOCK_TAI, &var)
 #define ts timespec
@@ -47,14 +38,63 @@ int main(int arc, char** ars)
 	seb = <1"network-space header" * 1"packet indice" * pcif"data">
 	reb = <1"network-space header" * 1"ack length (acl)" * acc"packet indice array">
 	*/
-	#define sebhs 1	//send buffer header size
-	unsigned char a14(seb,sebhs+1+pcif), a14(reb, 2+acc);	//se(nd) / re(ceive) b(uffer)
+	#define sebhs 54	//send buffer header size
+	#define sebl (sebhs+1+pcif)
+	#define rebl (sebhs+1+acc)
+	//unsigned char a14(seb,sebhs+1+pcif), a14(reb, 2+acc);	//se(nd) / re(ceive) b(uffer)
+	u char seb[sebl], reb[rebl];//todo
 	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
-	#define nwsh 252
-	seb[0]=nwsh;	//network-space header
+	#define nwsh 253
+
+	struct ethhdr *enh = seb;
+
+	enh->h_proto = 0x86dd;
+
+	enh->h_source[0] = 0x52;
+	enh->h_source[1] = 0x54;
+	enh->h_source[2] = 0x00;
+	enh->h_source[3] = 0xe8;
+	enh->h_source[4] = 0x9b;
+	enh->h_source[5] = 0xe9;
+
+	enh->h_dest[6+0] = 0xff;
+	enh->h_dest[6+1] = 0xff;
+	enh->h_dest[6+2] = 0xff;
+	enh->h_dest[6+3] = 0xff;
+	enh->h_dest[6+4] = 0xff;
+	enh->h_dest[6+5] = 0xff;
+	
+	struct ip6_hdr *ip6h = (struct ip6_hdr *) (seb+14);
+	ip6h->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(6<<28);
+	ip6h->ip6_ctlun.ip6_un1.ip6_un1_plen = htonl(sebl);
+	ip6h->ip6_ctlun.ip6_un1.ip6_un1_nxt = 253;
+	ip6h->ip6_ctlun.ip6_un1.ip6_un1_hlim = 255;
+
+	seb[22+0] = 0xfe;
+	seb[22+1] = 0x80;
+	seb[22+8] = 0x50;
+	seb[22+9] = 0x54;
+	seb[22+10] = 0x00;
+	seb[22+11] = 0xff;
+	seb[22+12] = 0xfe;
+	seb[22+13] = 0xe8;
+	seb[22+14] = 0x9b;
+	seb[22+15] = 0xe9;
+
+	seb[38+0] = 0xfe;
+	seb[38+1] = 0x80;
+	seb[38+8] = 0x50;
+	seb[38+9] = 0x54;
+	seb[38+10] = 0x00;
+	seb[38+11] = 0xff;
+	seb[38+12] = 0xfe;
+	seb[38+13] = 0x19;
+	seb[38+14] = 0x38;
+	seb[38+15] = 0x30;
 
 	// Create a raw socket
-	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
+	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
+	{
 		perror("socket");
 		exit(1);
 	}
@@ -112,7 +152,7 @@ int main(int arc, char** ars)
 		//receive acks
 		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, NULL, NULL);
 		if (num_bytes==-1)	p("recvfrom error.\n");
-		if (num_bytes && *reb == nwsh)	for (u char aci=0; aci<reb[1]; aci++)	fa[reb[2+aci]] = 1, p("received, %hhu\n", *reb);
+		if (num_bytes)	for (u char aci=0; aci<reb[sebhs]; aci++)	fa[reb[sebhs+1+aci]] = 1, p("received, %hhu\n", *reb);
 
 		for (u char pti=0; pti<pcif; pti++)	if (!fa[pti])
 		{

@@ -1,15 +1,9 @@
 //Sender Userspace
-
-#define _POSIX_C_SOURCE 199309L	//for use of TAI clock
+#include "us.h"
 
 //userspace eBPF program includes
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
-
-//general user-space C program needs
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
 
 //network send/receive...
 #include <string.h>
@@ -73,12 +67,12 @@ static int gfd(char *name, int **fds)
 		(*fds)[nb_fds++] = fd;
 	}
 
-err_close_fd:
-	close(fd);
-err_close_fds:
-	while (--nb_fds >= 0)
-		close((*fds)[nb_fds]);
-	return -1;
+	err_close_fd:
+		close(fd);
+	err_close_fds:
+		while (--nb_fds >= 0)
+			close((*fds)[nb_fds]);
+		return -1;
 }
 
 u char *fa;	//file ack array. Will hold whether or not each packet's ack has come

@@ -1,15 +1,9 @@
-//Receiver User-space
-
-#define _POSIX_C_SOURCE 199309L	//for use of TAI clock
+//Receiver User-space,
+#include "us.h"
 
 //userspace eBPF program includes
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
-
-//general user-space C program needs
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
 
 #include <time.h>
 #define tai(var) clock_gettime(CLOCK_TAI, &var)
