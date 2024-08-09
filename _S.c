@@ -1,12 +1,6 @@
 //Sender total userspace (for comparison)
 //No nacks
-
-#define _POSIX_C_SOURCE 199309L	//for use of TAI clock
-
-//general user-space C program needs
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include "us.h"
 
 //network send/receive...
 #include <string.h>
@@ -48,7 +42,16 @@ int main(int arc, char** ars)
 	int sockfd;
 	struct ifreq ifr;
 	struct sockaddr_ll sa;
-	unsigned char a14(reb, 1+acc), a14(seb, pds+1);
+
+	/* Construct frame	<size"explanation * size"explanation" * ...>
+	seb = <1"network-space header" * 1"packet indice" * pcif"data">
+	reb = <1"network-space header" * 1"ack length (acl)" * acc"packet indice array">
+	*/
+	#define sebhs 1	//send buffer header size
+	unsigned char a14(seb,sebhs+1+pcif), a14(reb, 2+acc);	//se(nd) / re(ceive) b(uffer)
+	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
+	#define nwsh 252
+	seb[0]=nwsh;	//network-space header
 
 	// Create a raw socket
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
@@ -57,8 +60,9 @@ int main(int arc, char** ars)
 	}
 
 	// Specify the interface to use
+	#define ifa "ens3"	//interface
 	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, "ven1", IFNAMSIZ - 1); // Change "ven1" to your interface name
+	strncpy(ifr.ifr_name, ifa, IFNAMSIZ - 1);
 	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
 		perror("ioctl");
 		close(sockfd);
@@ -79,8 +83,6 @@ int main(int arc, char** ars)
 	sa.sll_addr[4] = 0xFF;
 	sa.sll_addr[5] = 0xFF;
 
-	// Construct Ethernet frame (14 bytes: 6 bytes dest MAC, 6 bytes src MAC, 2 bytes ethertype)
-	memset(seb, 0, sizeof(seb));
 
 	u char f[pcif][pds];
 		
@@ -100,23 +102,25 @@ int main(int arc, char** ars)
 		for (u char pti=0; pti<pcif; pti++)
 		{
 			fa[pti]=0;
-			seb[0]=pti;
+			seb[sebhs]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[1+pdi]=f[pti][pdi];
+			for (; pdi<pds; pdi++)	seb[sebhs+1+pdi]=f[pti][pdi];
 			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
 		}
 
 		c:
 		//receive acks
-		ssize_t num_bytes = recvfrom(sockfd, reb, ETH_FRAME_LEN, 0, NULL, NULL);
-		if (num_bytes)	for (u char aci=0; aci<reb[0]; aci++)	fa[reb[1+aci]] = 1, p("received");
+		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, NULL, NULL);
+		if (num_bytes==-1)	p("recvfrom error.\n");
+		if (num_bytes && *reb == nwsh)	for (u char aci=0; aci<reb[1]; aci++)	fa[reb[2+aci]] = 1, p("received, %hhu\n", *reb);
 
 		for (u char pti=0; pti<pcif; pti++)	if (!fa[pti])
 		{
-			seb[0]=pti;
+			seb[sebhs]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[1+pdi]=f[pti][pdi];
+			for (; pdi<pds; pdi++)	seb[sebhs+1+pdi]=f[pti][pdi];
 			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
+			p("resending\n");
 			goto c;
 		}
 	}
@@ -128,7 +132,7 @@ int main(int arc, char** ars)
 	return 0;
 }
 /*
-sudo ip netns exec n1 ip link set dev ven1 xdpgeneric off
-clang _S.c -o _S -lbpf -fno-builtin
-e n1 ./_S 
+sudo ip link set dev eth0 xdpgeneric off
+gcc _S.c -o _S
+sudo ./_S 
 */

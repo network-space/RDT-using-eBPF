@@ -1,16 +1,12 @@
 //Receiver the total user-space implemeentation
+#include "us.h"
 
-#define _POSIX_C_SOURCE 199309L	//for use of TAI clock
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/if_ether.h>
 #include <linux/if_packet.h>
 #include <arpa/inet.h>
-#include <unistd.h>
 #include <linux/if.h>
 
 #include <time.h>
@@ -36,7 +32,16 @@ int main(int arc, char** ars)
 	int sockfd;
 	struct ifreq ifr;
 	struct sockaddr_ll sa;
-	unsigned char a14(reb, pds+1), a14(seb, acc+1);	//se(nd) / re(ceive) b(uffer) 
+
+	/* Construct frame	<size"explanation * size"explanation" * ...>
+	seb = <1"network-space header" * 1"packet indice" * pcif"data">
+	reb = <1"network-space header" * 1"ack length (acl)" * acc"packet indice array">
+	*/
+	#define sebhs 1	//send buffer header size
+	unsigned char a14(seb,sebhs+1+pcif), a14(reb, 2+acc);	//se(nd) / re(ceive) b(uffer)
+	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
+	#define nwsh 252	//network-space header
+	seb[0]=nwsh;
 
 	// Create a raw socket
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
@@ -46,7 +51,8 @@ int main(int arc, char** ars)
 
 	// Specify the interface to listen on
 	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, "ven2", IFNAMSIZ - 1); // Change "ven2" to your interface name
+	#define ifa "virbr0"	//interface
+	strncpy(ifr.ifr_name, ifa, IFNAMSIZ - 1); // Change "eth2" to your interface name
 	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
 		perror("ioctl");
 		close(sockfd);
@@ -67,34 +73,38 @@ int main(int arc, char** ars)
 	sa.sll_addr[4] = 0xFF;
 	sa.sll_addr[5] = 0xFF;
 
-	// Construct Ethernet frame (14 bytes: 6 bytes dest MAC, 6 bytes src MAC, 2 bytes ethertype)
-	memset(seb, 0, sizeof(seb));
-
 	printf("Listening on interface %s\n", ifr.ifr_name);
 	
 	for (u char en=0; en<re; en++)
 	{
+		seb[1] = 0;
 		for (u char pti=0; pti<pcif; pti++)	fr[pti]=0;
 		u char ptc=0;	//reset ptc to be able to send partyaial cumulative acks
+		u short int enc=0;
 		c:
-		ssize_t num_bytes = recvfrom(sockfd, reb, ETH_FRAME_LEN, 0, NULL, NULL);
-		if (num_bytes)
+		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, NULL, NULL);
+		if (num_bytes==-1)	p("recvfrom error.\n");
+		if (num_bytes && reb[0]==nwsh)
 		{
+			p("debug %zu\n", sizeof(reb));
+					p("debug: accessed reb");
+					for (u char *ucp=reb; ucp<reb+sizeof(reb); ucp++)	p(" %hhu", *ucp);
+					p("\n");
 			struct ts t;	tai(t);
-			p("%d. packet came at \t\t\t\t%ld%ld\n", reb[0], t.tv_sec, t.tv_nsec);
-			seb[1+seb[0]] = reb[0];
-			ptc++, seb[0]++;
-			if (seb[0] >= acc || ptc==pcif)	//sending cumulative ack with dynamic size
+			p("%hhu. packet came at \t\t\t\t%ld%ld\n", reb[1], t.tv_sec, t.tv_nsec);
+			seb[2+seb[1]] = reb[1];
+			ptc++, seb[1]++;
+			if (seb[1] >= acc || ptc==pcif)	//sending cumulative ack with dynamic size
 			{
 				p(" cumulative ack ssent\n");
 				sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
-				seb[0]=0;
+				seb[1]=0;
 			}
-			for (u char pdi=0; pdi<pds; pdi++)	f[reb[0]][pdi]=reb[1+pdi];
-			fr[reb[0]] = 1;
+			for (u char pdi=0; pdi<pds; pdi++)	f[reb[1]][pdi]=reb[2+pdi];
+			fr[reb[1]] = 1;
 		}
+		//else if (num_bytes)	p("%hhu, %d\n", reb[0], num_bytes);
 		for (u char pti=0; pti<pcif; pti++)	if (!fr[pti])	goto c;
-		
 		p("file info:	");
 		for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	p("%d ", f[pti][pdi]);
 		p("\n");
@@ -107,8 +117,8 @@ int main(int arc, char** ars)
 	close(sockfd);
 	return 0;
 }
-/*
-sudo ip netns exec n2 ip link set dev ven2 xdpgeneric off
-clang _R.c -o _R -lbpf
-e n2 ./_R 
+/*-fsched-dep-count-heuristic
+sudo ip link set dev eth2 xdpgeneric off
+gcc _R.c -o _R
+sudo ./_R 
 */
