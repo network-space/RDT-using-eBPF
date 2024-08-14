@@ -19,7 +19,7 @@
 //#include "k.h"
 
 u l int t, t0,t1;
-u char ptc,ptc2;	//algoritma için gerekli. Son paketler alındığında kümülatif olarak hedeflediğimizden az sayıda ack varsa onları yolluyoruz. Yalnız bunu uygulamamışıoz Şu an düzgün çalışmıyor.
+u char ptc0,ptc1;	//algoritma için gerekli. Son paketler alındığında kümülatif olarak hedeflediğimizden az sayıda ack varsa onları yolluyoruz. Yalnız bunu uygulamamışıoz Şu an düzgün çalışmıyor.
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -29,8 +29,10 @@ struct {
 u char pl;	//payload (not sure if it is used)
 
 //for debug
-u char da[14];
+u char da[65];
 u char ptt;
+u char aca0;
+u char aca2[10];	//ack array debug
 
 #define ptac(pti) if ((void*)c->d + pti+1 > (void*)c->de)	goto e
 ///label e(nd)
@@ -39,7 +41,7 @@ u char fs,pds,acc;
 
 //dynamic allocation is not allowed
 u char d[2+255], payload0;
-u char aca[1+255];	//ack array
+u char aca[222+255];	//ack array
 //used for cumulative ack
 //aca[0] is the number of acks inside array. The rest are packet indices
 
@@ -50,12 +52,11 @@ int pm(struct xdp_md *c)
 
 	ptac(9);
 	if (((u char *)(c->d))[9] != 0xe8)	goto e;	//sender's MACA.3
-	ptc2++;
 	ptac(62);
 	switch (((u char *)(c->d))[62])	//packet type
 	{
 		case 0:	//metadatapacket
-			ptc++;
+			ptc0++;
 			ptac(65);
 			fs = ((u char *)(c->d))[63], pds = ((u char *)(c->d))[64], acc = ((u char *)(c->d))[65];
 
@@ -79,7 +80,8 @@ int pm(struct xdp_md *c)
 			}
 			return XDP_TX;
 		case 1:	//data
-			for (u char pti=0; pti<pds; pti++)	//swap MAC a.
+			ptc1++;
+			for (u char pti=0; pti<pds; pti++)
 			{
 				ptac(63+pti);
 				d[pti] = ((u char *)(c->d))[63+pti];
@@ -108,15 +110,26 @@ int pm(struct xdp_md *c)
 				goto e;
 			ptac(63);	//redundant but for verification
 			aca[1+aca[0]] = ((u char *)(c->d))[63];
-			ptc++, aca[0]++;
+			aca[0]++;
 			if (aca[0] >= acc)	//sending cumulative ack with dynamic size using TX
 			{
 				ptac(62);
 				((u char *)(c->d))[62] = 2;	//ack
-				for (u char pti=0; pti < aca[0]; pti++)
+				aca0 = aca[0];
+				for (u char pti=0; pti < acc+1; pti++)
 				{
-					ptac(63+pti);	//redundant but for verification	sürekli check etmemek de çalışıyorsa optimize edilveilir.
+					void *end = c->de,*begin=c->d;
+					bpf_xdp_adjust_tail(c, 63+acc - ((void*)c->de - (void*)c->d));
 					((u char *)(c->d))[63+pti] = aca[pti];
+				}
+				for (u char pti=0; pti<65; pti++)
+				{
+					ptac(pti);
+					da[pti] = ((u char *)(c->d))[pti];
+				}
+				for (u char pti=0; pti<10; pti++)
+				{
+					aca2[pti] = aca[pti];
 				}
 				aca[0]=0;	//reset ack count
 				t1 = bpfktgtains();

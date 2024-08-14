@@ -29,7 +29,7 @@ struct
 
 // Nanosaniye cinsinden an ölçümü ve debugging için global variabls
 u l int t, t0, t1;
-u char ptc; // packet count
+u char ptc0,ptc2,ptc3; // packet counts by type
 u char d[2 + 255];
 u char fs, pds, acc;
 unsigned char anan[1000];
@@ -62,7 +62,7 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 	switch (((u char *)(c->d))[62])
 	{
 	case 0:
-		ptc++;
+		ptc0++;
 		ptac(65);
 		fs = ((u char *)(c->d))[63], pds = ((u char *)(c->d))[64], acc = ((u char *)(c->d))[65];
 		ptac(0);
@@ -77,7 +77,7 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 		}
 		return XDP_DROP;
 	case 2: // ack
-		goto e;
+		ptc2++;
 		ptac(63);	
 		u char acco = ((u char *)(c->d))[63];
 		for (u char aci = 0; aci < acco; aci++)
@@ -89,6 +89,7 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 		}
 		break;
 	case 3: // nack
+		ptc3++;
 		goto e;
 		u char rbo[2] = {3, 0};
 		ptac(63);
@@ -101,7 +102,6 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 	/// indent using tabs please.
 
 	t1 = bpfktgtains();
-	ptc++;
 	t0 = t; // debugging actions had better not be included while we measure time
 	return XDP_DROP;
 e:
