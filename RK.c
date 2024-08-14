@@ -15,8 +15,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
-#include "k.h"
 #include "c.h"
+//#include "k.h"
 
 u l int t, t0,t1;
 u char ptc;	//algoritma için gerekli. Son paketler alındığında kümülatif olarak hedeflediğimizden az sayıda ack varsa onları yolluyoruz. Yalnız bunu uygulamamışıoz Şu an düzgün çalışmıyor.
@@ -26,28 +26,49 @@ struct {
 	__uint(max_entries, 1);
 } rbrk SEC(".maps");
 
-u char aca[1+acc];	//ack array
-//used for cumulative ack
-//aca[0] eventually is the number of acks inside array. The rest are packet indices
+u char pl;	//payload (not sure if it is used)
 
-u char pl;	//payload (not sure it is used)
+//for debug
+u char da[14];
+u char ptt;
 
 #define ptac(pti) if ((void*)c->d + pti+1 > (void*)c->de)	goto e
+///label e(nd)
+
+u char fs,pds,acc;
+
+//dynamic allocation is not allowed
+u char d[2+255];
+u char aca[1+255];	//ack array
+//used for cumulative ack
+//aca[0] is the number of acks inside array. The rest are packet indices
 
 SEC("xdp")
 int pm(struct xdp_md *c)
 {
 	t = bpfktgtains();
 
-	ptac(pds);
+	ptac(9);
+	if (((u char *)(c->d))[9] != 0xe8)	goto e;	//sender's MACA.3
 
-	/// ((u char *)(c->d)) is the packet pointer
+	ptac(62);
+	if (((u char *)(c->d))[62] == 0)	//metadatapacket
+	{
+		ptc++;
+		ptac(65);
+		fs = ((u char *)(c->d))[63], pds = ((u char *)(c->d))[64], acc = ((u char *)(c->d))[65];
+		return XDP_TX;
+	}
+	for (u char di=0; di < 66; di++)
+	{
+		ptac(di);
+		pl = d[di] = ((u char *)(c->d))[di];	//copy data into pointer
+	}
 
-	u char d[pds+1];
-	for (u char di=0; di<pds+1; di++)	pl = d[di] = ((u char *)(c->d))[di];	//copy data into pointer
 	bpf_ringbuf_output(&rbrk, d, sizeof(d), 0);	//send packet to userspace
 
-	///label e(nd)
+	goto e;
+
 
 	if (1+aca[0] >= sizeof(aca))	//redundant but for verification
 		goto e;
@@ -75,9 +96,10 @@ int pm(struct xdp_md *c)
 	e:	return XDP_PASS;
 }
 /*
-sudo ip netns exec n2 ip link set dev ven2 xdp off
-clang -c RK.c -o RK.o -target bpf -g -O1 -fno-builtin
-e n2 ip link set dev ven2 xdp obj RK.o sec xdp
+ixdpt="ens3 xdpgeneric"
+sudo ip link set dev $ixdpt off
+gcc -march=bpf -c RK.c -o RK.o -g -O1
+sudo ip link set dev $ixdpt obj RK.o sec xdp
 
 sudo bpftool map dump name RK.bss
 */

@@ -32,28 +32,32 @@ u char ptc;	//packet count
 
 #define ptac(pti) if ((void*)c->d + pti+1 > (void*)c->de)	goto e	//packet access check
 
-SEC("xdp")
+SEC("s")	//programı kernele yüklerken lazım olcak, adın aynı olması dışında bi numarası yok
 int pm(struct xdp_md *c)	//p(rogra)m.	c(ontext)
 {
 	t = bpfktgtains();
+	
+	ptac(9);
+	if (((u char *)(c->d))[9] != 0x19)	goto e;
 
-	ptac(acc+2);	//instea of nested stupid if blocks
+	/// use ptac() instea of nested stupid if blocks
 
-	u char ptt = ((u char *)(c->d))[0];	//p(acke)t t(ype)
-	switch(ptt)
+	//...
+	ptac(0);
+	switch (((u char *)(c->d))[0])
 	{
-		case 0:	//ack
-			u char acco = ((u char *)(c->d))[1];
+		case 2:	//ack
+			ptac(1);	u char acco = ((u char *)(c->d))[1];
 			for (u char aci=0; aci < acco; aci++)
 			{
-				u char rbo[2] = {0,0};
+				u char rbo[2] = {2};
 				ptac(2+aci);
 				rbo[1] = ((u char *)(c->d))[2+aci];
 				bpf_ringbuf_output(&rbsik, rbo, 2, 0);
 			}
 			break;
-		case 1:	//nack
-			u char rbo[2] = {1,0};
+		case 3:	//nack
+			u char rbo[2] = {3,0};
 			ptac(1);
 			u char pti = ((u char *)(c->d))[1];
 			rbo[1]=pti;
@@ -69,16 +73,17 @@ int pm(struct xdp_md *c)	//p(rogra)m.	c(ontext)
 	e:	return XDP_PASS;
 }
 /*
-sudo ip netns exec n1 ip link set dev ven1 xdp off
-clang -c SKI.c -o SKI.o -target bpf -g -O1 -fno-builtin
-sudo ip netns exec n1 ip link set dev ven1 xdp obj SKI.o sec xdp
+ixdpt="ens3 xdpgeneric"
+sudo ip link set dev $ixdpt off
+gcc -march=bpf -c SKI.c -o SKI.o -gbtf -O1
+sudo ip link set dev $ixdpt obj SKI.o sec s
+
+sudo bpftool map dump name SKI.bss
+//to view global variables for measurement
 
 //compilation variables:
-	xdpgeneric kullandım ki xdp ile karşılaştırabilelim.
-	-O1	minimum optimization needed
-	-fno-builtin	Bunu etkisi var mı bilmiyorum. Built*in fonlsitonları optimize etme diyorsun.
-
-//to view global variables for measurement:
-sudo bpftool map dump name SKI.bss
+	i(nterface):	ens3
+	xdp t(ype):	xdpgeneric kullandım ki xdp ile karşılaştırabilelim.
+	O1 lazım en az
 */
 char _license[] SEC("license") = "GPL";

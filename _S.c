@@ -1,27 +1,27 @@
 //Sender total userspace (for comparison)
 //No nacks
+/*frames to be sent and received are as follows: (<size"explanation" * size"explanation" * ...>)
+seb = <1"packet indice" * pcif"data">
+reb = <1"ack length (acl)" * acc"packet indice array">
+*/
+#include "c.h"
 #include "us.h"
 
 #include <time.h>
 #define tai(var) clock_gettime(CLOCK_TAI, &var)
 #define ts timespec
 
-#include "c.h"
-
 #define ra (rand()%256)
 #define p printf
-#define a14(na, si) na[(si<14) ? 14 : (si)]	//create a array whose size is max(14, si) with na(me)
 
 u char *fa;
-int rbsfn(void*c, void*d, size_t s)
-{
-	fa[*(u char *)d]=1;
-	return 0;
-}
-
 int main(int arc, char** ars)
 {
-	p("\n");
+	int sockfd;
+	struct sockaddr_in6 dest_addr;
+	const char *ipv6_addr_str = "fe80::5054:ff:fe19:3830";
+	const char *message = "Hello, UDP over IPv6!";
+	int port = 1111;
 
 	char fs,pds,pcif,re,acc;
 	if (arc>=4)	fs = atoi(ars[1]), pds = atoi(ars[2]), acc = atoi(ars[3]);
@@ -29,107 +29,59 @@ int main(int arc, char** ars)
 	u char _fa[pcif];	fa=_fa;
 
 	srand(time(0));
+	#define sebl (1+pds)
+	#define rebl (1+acc)
+	u char seb[sebl],reb[rebl];	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
 
-	int sockfd;
-	struct ifreq ifr;
-	struct sockaddr_ll sa;
-
-	/* Construct frame	<size"explanation * size"explanation" * ...>
-	seb = <1"network-space header" * 1"packet indice" * pcif"data">
-	reb = <1"network-space header" * 1"ack length (acl)" * acc"packet indice array">
-	*/
-	#define sebhs 54	//send buffer header size
-	#define sebl (sebhs+1+pcif)
-	#define rebl (sebhs+1+acc)
-	//unsigned char a14(seb,sebhs+1+pcif), a14(reb, 2+acc);	//se(nd) / re(ceive) b(uffer)
-	u char seb[sebl], reb[rebl];//todo
-	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
-	#define nwsh 253
-
-	struct ethhdr *enh = seb;
-
-	enh->h_proto = 0x86dd;
-
-	enh->h_source[0] = 0x52;
-	enh->h_source[1] = 0x54;
-	enh->h_source[2] = 0x00;
-	enh->h_source[3] = 0xe8;
-	enh->h_source[4] = 0x9b;
-	enh->h_source[5] = 0xe9;
-
-	enh->h_dest[6+0] = 0xff;
-	enh->h_dest[6+1] = 0xff;
-	enh->h_dest[6+2] = 0xff;
-	enh->h_dest[6+3] = 0xff;
-	enh->h_dest[6+4] = 0xff;
-	enh->h_dest[6+5] = 0xff;
-	
-	struct ip6_hdr *ip6h = (struct ip6_hdr *) (seb+14);
-	ip6h->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(6<<28);
-	ip6h->ip6_ctlun.ip6_un1.ip6_un1_plen = htonl(sebl);
-	ip6h->ip6_ctlun.ip6_un1.ip6_un1_nxt = 253;
-	ip6h->ip6_ctlun.ip6_un1.ip6_un1_hlim = 255;
-
-	seb[22+0] = 0xfe;
-	seb[22+1] = 0x80;
-	seb[22+8] = 0x50;
-	seb[22+9] = 0x54;
-	seb[22+10] = 0x00;
-	seb[22+11] = 0xff;
-	seb[22+12] = 0xfe;
-	seb[22+13] = 0xe8;
-	seb[22+14] = 0x9b;
-	seb[22+15] = 0xe9;
-
-	seb[38+0] = 0xfe;
-	seb[38+1] = 0x80;
-	seb[38+8] = 0x50;
-	seb[38+9] = 0x54;
-	seb[38+10] = 0x00;
-	seb[38+11] = 0xff;
-	seb[38+12] = 0xfe;
-	seb[38+13] = 0x19;
-	seb[38+14] = 0x38;
-	seb[38+15] = 0x30;
-
-	// Create a raw socket
-	if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
-	{
+	// Create a socket
+	sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
 		perror("socket");
-		exit(1);
+		return 1;
 	}
 
-	// Specify the interface to use
-	#define ifa "ens3"	//interface
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, ifa, IFNAMSIZ - 1);
-	if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
-		perror("ioctl");
+	// Zero out the address structure
+	struct sockaddr_in6 addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin6_family = AF_INET6;
+	addr.sin6_addr = in6addr_any; // Bind to all interfaces
+	addr.sin6_port = htons(1111); // Bind to port 
+
+	// Bind the socket
+	if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("bind");
 		close(sockfd);
-		exit(1);
+		return 1;
 	}
 
-	// Prepare the sockaddr_ll structure
-	memset(&sa, 0, sizeof(struct sockaddr_ll));
-	sa.sll_ifindex = ifr.ifr_ifindex;
-	sa.sll_halen = ETH_ALEN;
-	sa.sll_protocol = htons(ETH_P_IP);
+	// Zero out the destination address structure
+	memset(&dest_addr, 0, sizeof(dest_addr));
+	dest_addr.sin6_family = AF_INET6;
+	dest_addr.sin6_port = htons(port);
 
-	// Destination MAC address (example)
-	sa.sll_addr[0] = 0xFF;
-	sa.sll_addr[1] = 0xFF;
-	sa.sll_addr[2] = 0xFF;
-	sa.sll_addr[3] = 0xFF;
-	sa.sll_addr[4] = 0xFF;
-	sa.sll_addr[5] = 0xFF;
+	// Convert IPv6 address from text to binary
+	if (inet_pton(AF_INET6, ipv6_addr_str, &dest_addr.sin6_addr) != 1) {
+		perror("inet_pton");
+		close(sockfd);
+		return 1;
+	}
 
+	//send metadata about file to be sent, so _R is not a variadic executable
+	u char pt[3] = {fs,pds,acc};	//	pt[0]=fs, pt[1]=pds, pt[2]=acc;
 
-	u char f[pcif][pds];
-		
-	#define cf for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	f[pti][pdi]=ra, fa[pti]=0;
+	// Send the UDP packet
+	if (sendto(sockfd, pt, sizeof(pt), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
+		perror("sendto");
+		close(sockfd);
+		return 1;
+	}
+
+	printf("UDP packet sent to %s:%d\n", ipv6_addr_str, port);
 
 	struct ts t0,t1, t;
 
+	u char f[pcif][pds];
+	#define cf for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	f[pti][pdi]=ra, fa[pti]=0;
 	cf;
 	p("file info:	");
 	for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	p("%d ", f[pti][pdi]);
@@ -142,25 +94,30 @@ int main(int arc, char** ars)
 		for (u char pti=0; pti<pcif; pti++)
 		{
 			fa[pti]=0;
-			seb[sebhs]=pti;
+			seb[0]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[sebhs+1+pdi]=f[pti][pdi];
-			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
+			for (; pdi<pds; pdi++)	seb[0+1+pdi]=f[pti][pdi];
+			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 		}
 
 		c:
 		//receive acks
-		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, NULL, NULL);
-		if (num_bytes==-1)	p("recvfrom error.\n");
-		if (num_bytes)	for (u char aci=0; aci<reb[sebhs]; aci++)	fa[reb[sebhs+1+aci]] = 1, p("received, %hhu\n", *reb);
+		socklen_t addr_len = sizeof(addr);
+		ssize_t num_bytes = recvfrom(sockfd, reb, sizeof(reb), 0, (struct sockaddr *)&addr, &addr_len);
+		//if (num_bytes==-1)	p("recvfrom error.\n");
+		printf("Received %zu bytes:", num_bytes);
+		for (unsigned char pti=0; pti<num_bytes; pti++)	printf(" %hhu", reb[pti]);
+		printf("\n");
+
+		if (num_bytes)	for (u char aci=0; aci<reb[0]; aci++)	fa[reb[0+1+aci]] = 1;	//, p("received, %hhu\n", *reb);
 
 		for (u char pti=0; pti<pcif; pti++)	if (!fa[pti])
 		{
-			seb[sebhs]=pti;
+			seb[0]=pti;
 			u char pdi=0;
-			for (; pdi<pds; pdi++)	seb[sebhs+1+pdi]=f[pti][pdi];
-			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
-			p("resending\n");
+			for (; pdi<pds; pdi++)	seb[0+1+pdi]=f[pti][pdi];
+			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+			//p("resending\n");
 			goto c;
 		}
 	}
@@ -168,6 +125,7 @@ int main(int arc, char** ars)
 	p("experiment done by \t\t\t\t%ld%ld\n", t1.tv_sec, t1.tv_nsec);
 
 	e:
+	// Close the socket
 	close(sockfd);
 	return 0;
 }
