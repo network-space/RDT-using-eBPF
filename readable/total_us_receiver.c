@@ -1,16 +1,8 @@
 //Receiver the total user-space implemeentation
-#include "c.h"
-#include "us.h"
+#include "common.h"
+#include "userspace.h"
 
 #include <time.h>
-#define tai(var) clock_gettime(CLOCK_TAI, &var)
-#define ts timespec
-
-#define ra (rand()%256)
-#define p printf
-
-#define BUFFER_SIZE 1024
-
 int main() {
 	int sockfd;
 	struct sockaddr_in6 dest_addr;
@@ -58,52 +50,52 @@ int main() {
 	char fs=buffer[0], pds=buffer[1], pcif,re, acc=buffer[2];
 	pcif = fs/pds, re=1;
 
-	u char f[pcif][pds];
-	u char fr[pcif];
+	unsigned char f[pcif][pds];
+	unsigned char fr[pcif];
 
 	#define sebl (1+acc)
 	#define rebl (1+pds)
-	u char seb[sebl],reb[rebl];	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
+	unsigned char seb[sebl],reb[rebl];	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
 		
-	for (u char en=0; en<re; en++)
+	for (unsigned char en=0; en<re; en++)
 	{
-		for (u char pti=0; pti<pcif; pti++)	fr[pti]=0;
-		u char ptc=0;	//reset ptc to be able to send partyaial cumulative acks
-		u short int enc=0;
+		for (unsigned char pti=0; pti<pcif; pti++)	fr[pti]=0;
+		unsigned char ptc=0;	//reset ptc to be able to send partyaial cumulative acks
+		unsigned short int enc=0;
 		c:
 		ssize_t len = recvfrom(sockfd, reb, sizeof(reb), 0, (struct sockaddr *)&addr, &addr_len);
 
-		if (len==-1)	p("recvfrom error.\n");
+		if (len==-1)	printf("recvfrom error.\n");
 		else if (len)
 		{
-			p("debug sizeof(reb) %zu\n", len);
-					p("debug: accessed reb");
-					for (u char *ucp = reb+0; ucp<reb+sizeof(reb); ucp++)	p(" %hhu", *ucp);
-					p("\n");
-			struct ts t;	tai(t);
-			p("%hhu. packet came at \t\t\t\t%ld%ld\n", reb[0], t.tv_sec, t.tv_nsec);
+			printf("debug sizeof(reb) %zu\n", len);
+					printf("debug: accessed reb");
+					for (unsigned char *ucp = reb+0; ucp<reb+sizeof(reb); ucp++)	printf(" %hhu", *ucp);
+					printf("\n");
+			struct timespec t;	clock_gettime(CLOCK_TAI, &t);
+			printf("%hhu. packet came at \t\t\t\t%ld%ld\n", reb[0], t.tv_sec, t.tv_nsec);
 			seb[0+1+seb[0]] = reb[0];
 			ptc++, seb[0]++;
 			if (seb[0] >= acc || ptc==pcif)	//sending cumulative ack with dynamic size
 			{
-				p(" cumulative ack ssent\n");
+				printf(" cumulative ack ssent\n");
 				sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 				seb[0]=0;
 			}
-			for (u char pdi=0; pdi<pds; pdi++)	f[reb[0]][pdi]=reb[1+0+pdi];
+			for (unsigned char pdi=0; pdi<pds; pdi++)	f[reb[0]][pdi]=reb[1+0+pdi];
 			fr[reb[0]] = 1;
 		}
-		//else if (num_bytes)	p("%hhu, %d\n", reb[0], num_bytes);
-		for (u char pti=0; pti<pcif; pti++)	if (!fr[pti])	goto c;
-		p("file info:	");
-		for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	p("%d ", f[pti][pdi]);
-		p("\n");
+		//else if (num_bytes)	printf("%hhu, %d\n", reb[0], num_bytes);
+		for (unsigned char pti=0; pti<pcif; pti++)	if (!fr[pti])	goto c;
+		printf("file info:	");
+		for (unsigned char pti=0; pti<pcif; pti++)	for (unsigned char pdi=0; pdi<pds; pdi++)	printf("%d ", f[pti][pdi]);
+		printf("\n");
 	}
 
-	struct ts t;	tai(t);
-	p("experiment finished at \t\t\t%ld%ld\n", t.tv_sec, t.tv_nsec);
+	struct timespec t;	clock_gettime(CLOCK_TAI, &t);
+	printf("experiment finished at \t\t\t%ld%ld\n", t.tv_sec, t.tv_nsec);
 
-	p("\n");
+	printf("\n");
 /* 
 	// Receive UDP packets
 	while (1) {
@@ -126,6 +118,6 @@ int main() {
 }
 /*-fsched-dep-count-heuristic
 sudo ip link set dev eth2 xdpgeneric off
-gcc _R.c -o _R
-sudo ./_R 
+gcc total_us_receiver.c -o total_us_receiver
+sudo ./total_us_receiver
 */

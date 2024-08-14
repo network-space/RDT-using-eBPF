@@ -78,43 +78,53 @@ int pm(struct xdp_md *c)
 				((u char *)(c->d))[i-16] = s;
 			}
 			return XDP_TX;
+		case 1:	//data
+			for (u char pti=0; pti<pds; pti++)	//swap MAC a.
+			{
+				ptac(63+pti);
+				d[pti] = ((u char *)(c->d))[63+pti];
+			}
+			bpf_ringbuf_output(&rbrk, d, pds, 0);	//send payload to userspace
+
+			for (u char i=0,s; i<6; i++)	//swap MAC a.
+			{
+				ptac(i);
+				s = ((u char *)(c->d))[i];
+				ptac(i+6);
+				((u char *)(c->d))[i] = ((u char *)(c->d))[i+6];
+				ptac(i+6);
+				((u char *)(c->d))[i+6] = s;
+			}
+			for (u char i=61,s; i>(61-16); i--)	//swap ipv6 a.
+			{
+				ptac(i);
+				s = ((u char *)(c->d))[i];
+				ptac(i-16);
+				((u char *)(c->d))[i] = ((u char *)(c->d))[i-16];
+				ptac(i-16);
+				((u char *)(c->d))[i-16] = s;
+			}
+			if (1+aca[0] >= sizeof(aca))	//redundant but for verification
+				goto e;
+			ptac(63);	//redundant but for verification
+			aca[1+aca[0]] = ((u char *)(c->d))[63];
+			ptc++, aca[0]++;
+			if (aca[0] >= acc)	//sending cumulative ack with dynamic size using TX
+			{
+				ptac(62);
+				((u char *)(c->d))[62] = 2;	//ack
+				for (u char pti=0; pti < aca[0]; pti++)
+				{
+					ptac(63+pti);	//redundant but for verification	sürekli check etmemek de çalışıyorsa optimize edilveilir.
+					((u char *)(c->d))[63+pti] = aca[pti];
+				}
+				aca[0]=0;	//reset ack count
+				t1 = bpfktgtains();
+				t0=t;
+				return XDP_TX;
+			}
+			return XDP_DROP;
 	}
-	ptac(62);
-	payload0 = ((u char *)(c->d))[62];
-	for (u char di=0; di < 66; di++)
-	{
-		ptac(di);
-		pl = d[di] = ((u char *)(c->d))[di];	//copy data into pointer
-	}
-
-	bpf_ringbuf_output(&rbrk, d, sizeof(d), 0);	//send packet to userspace
-
-	goto e;
-
-
-	if (1+aca[0] >= sizeof(aca))	//redundant but for verification
-		goto e;
-	ptac(0);	//redundant but for verification
-	aca[1+aca[0]] = ((u char *)(c->d))[0];
-	ptc++, aca[0]++;
-	if (aca[0] >= acc)	//sending cumulative ack with dynamic size using TX
-	{
-		if (c->de - c->d > 14)	bpf_xdp_adjust_tail(c, 1 + sizeof(aca) - (c->de - c->d));
-		ptac(0);
-		((u char *)(c->d))[0] = 0;
-		for (u char pti=0; pti < sizeof(aca); pti++)
-		{
-			ptac(1+pti);	//redundant but for verification	sürekli check etmemek de çalışıyorsa optimize edilveilir.
-			((u char *)(c->d))[1+pti] = aca[pti];
-		}
-		aca[0]=0;	//reset ack count
-		t1 = bpfktgtains();
-		t0=t;
-		return XDP_TX;
-	}
-	t1 = bpfktgtains();
-	t0=t;
-	return XDP_DROP;	//do not send ack 
 	e:	return XDP_PASS;
 }
 /*

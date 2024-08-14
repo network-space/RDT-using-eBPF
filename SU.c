@@ -75,10 +75,6 @@ int rbcfn(void*c, void*d, size_t s)	//r(ing) b(uffer) c(onsuming) f(unctio)n
 //c(ontext): ne olduğunu bimiyom kullanmıyıoz
 //d(ata) is array of s(ize) bytes
 {	//ring buffer'a veri geldiği poll fonksiyonunca anlaşıldıkça bu fonksiyon çağrılıyuor. Ya da ringbuffernew gibi bir fn. ile ring buffer oluşturukuynca? Wmin değilim.
-	if (s==1)
-	{
-		p("rb receive size = 1\n");
-	}
 	switch (((u char *)d)[0])
 	{
 		case 0:	//metadata ack
@@ -169,7 +165,6 @@ int main(int arc, char** ars)	//argumenty callable
 	}
 	// Send the UDP packet
 	p("metadata sent\n");
-	return 0;
 
 
 	#define sebl (2+pds)

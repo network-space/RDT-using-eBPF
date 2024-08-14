@@ -1,0 +1,39 @@
+# Ignore object files, static and dynamic libraries
+*.o
+*.a
+*.so
+
+# Ignore executable files
+*.out
+*.exe
+
+# Ignore backup and temporary files
+*~
+*.swp
+*.bak
+*.tmp
+
+# Ignore build directories (if applicable)
+build/
+bin/
+obj/
+out/
+
+# Ignore dependency files
+*.d
+
+# Ignore core dumps
+core
+
+# Ignore coverage data
+*.gcda
+*.gcno
+*.gcov
+
+# Ignore IDE-specific files (adjust according to your IDE)
+.vscode/
+*.code-workspace
+
+# Ignore Makefile generated files
+Makefile
+makefile
