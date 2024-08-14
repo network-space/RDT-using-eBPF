@@ -77,12 +77,12 @@ int rbcfn(void*c, void*d, size_t s)	//r(ing) b(uffer) c(onsuming) f(unctio)n
 {	//ring buffer'a veri geldiği poll fonksiyonunca anlaşıldıkça bu fonksiyon çağrılıyuor. Ya da ringbuffernew gibi bir fn. ile ring buffer oluşturukuynca? Wmin değilim.
 	if (s==1)
 	{
-		p("size low\n");
-	}	
+		p("rb receive size = 1\n");
+	}
 	switch (((u char *)d)[0])
 	{
 		case 0:	//metadata ack
-			p("md ack%hhu\n");
+			p("md ack\n");
 			mdr=1;
 			break;
 		case 2:	//ack
@@ -157,7 +157,7 @@ int main(int arc, char** ars)	//argumenty callable
 		return 1;
 	}
 	
-	while (mdr)	//send metadata about file to be sent, so _R is not a variadic executable
+	while (!mdr)	//send metadata about file to be sent, so _R is not a variadic executable
 	{
 		u char md[4] = {0,fs,pds,acc};	//metadata
 		if (sendto(sockfd, md, sizeof(md), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
@@ -169,6 +169,7 @@ int main(int arc, char** ars)	//argumenty callable
 	}
 	// Send the UDP packet
 	p("metadata sent\n");
+	return 0;
 
 
 	#define sebl (2+pds)

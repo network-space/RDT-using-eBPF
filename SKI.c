@@ -77,6 +77,7 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 		}
 		return XDP_DROP;
 	case 2: // ack
+		goto e;
 		ptac(63);	
 		u char acco = ((u char *)(c->d))[63];
 		for (u char aci = 0; aci < acco; aci++)
@@ -88,12 +89,14 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 		}
 		break;
 	case 3: // nack
+		goto e;
 		u char rbo[2] = {3, 0};
 		ptac(63);
 		u char pti = ((u char *)(c->d))[63];
 		rbo[1] = pti;
 		bpf_ringbuf_output(&rbsik, rbo, 2, 0);
 	}
+	goto e;
 
 	/// indent using tabs please.
 
