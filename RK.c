@@ -119,7 +119,7 @@ int pm(struct xdp_md *c)
 				for (u char pti=0; pti < acc+1; pti++)
 				{
 					void *end = c->de,*begin=c->d;
-					bpf_xdp_adjust_tail(c, 63+acc - ((void*)c->de - (void*)c->d));
+					bpf_xdp_adjust_tail(c, 63+acc - (end-begin));
 					((u char *)(c->d))[63+pti] = aca[pti];
 				}
 				for (u char pti=0; pti<65; pti++)
