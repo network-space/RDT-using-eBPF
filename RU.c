@@ -74,6 +74,7 @@ char fs,pds,pcif,re,acc;
 #include <linux/if_packet.h>
 #include <arpa/inet.h>
 
+u char mdr=0;	//metadata received
 u char en=0;
 int rbcfn(void*c, void*d, size_t s)
 {
@@ -85,62 +86,78 @@ int rbcfn(void*c, void*d, size_t s)
 	///e(xperiment) n(umber)
 	
 	c:	//c(ontinue)
-	struct ts t;	tai(t);
-	p("dereferencing d\n");	//debugging purposes
-	p("%hhu. packet (%hhu) came at \t\t\t%ld%ld\n", *(u char *)d, ((u char *)d)[1], t.tv_sec, t.tv_nsec);
 
-	if (s < pds+1)	//packet data is partial. Just do not receive packet. This functionality can be imroved by receiving partial packets etc. Future weork.
+	switch (((u char *)d)[0])
 	{
-		p("sending nack\n");
-		//bunu copy paste yaptrım yani bu kadar local var tanımlamak falan hepsi overhead. Bunları optimize etmek için global falan yapılabilir 
-		int sockfd;
-		struct ifreq ifr;
-		struct sockaddr_ll sa;
-		unsigned char buffer[14];
+		case 0:	//metadata
+			if (s < 4)	break;
+			mdr=1;
+			//p("md %hhu %hhu %hhu\n", ((u char *)d)[1], ((u char *)d)[2], ((u char *)d)[3] );
+			fs = ((u char *)d)[1];
+			pds = ((u char *)d)[2];
+			acc = ((u char *)d)[3];
+			pcif = fs/pds;
+			break;
+		case 1:	//data
+			//p("packet %hhu\n", ((u char *)d)[1] );
+			struct ts t;	tai(t);
+			//p("dereferencing d\n");	//debugging purposes
+			//p("%hhu. packet (%hhu) came at \t\t\t%ld%ld\n", ((u char *)d)[1], ((u char *)d)[2], t.tv_sec, t.tv_nsec);
+			if (s < pds+1)	//packet data is partial. Just do not receive packet. This functionality can be imroved by receiving partial packets etc. Future weork.
+			{
+				p("sending nack\n");
+				//bunu copy paste yaptrım yani bu kadar local var tanımlamak falan hepsi overhead. Bunları optimize etmek için global falan yapılabilir 
+				int sockfd;
+				struct sockaddr_in6 dest_addr;
+				const char *ipv6_addr_str = "fe80::5054:ff:fee8:9be9";
+				int port = 1111;
+				struct sockaddr_in6 addr;
+				socklen_t addr_len = sizeof(addr);
 
-		// Create a raw socket
-		if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
-			perror("socket");
-			exit(1);
-		}
+				// Create a socket
+				sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+				if (sockfd < 0) {
+					perror("socket");
+					return 1;
+				}
 
-		// Specify the interface to use
-		memset(&ifr, 0, sizeof(struct ifreq));
-		strncpy(ifr.ifr_name, "ven1", IFNAMSIZ - 1); // Change "ven1" to your interface name
-		if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
-			perror("ioctl");
-			close(sockfd);
-			exit(1);
-		}
+				// Zero out the address structure
+				memset(&addr, 0, sizeof(addr));
+				addr.sin6_family = AF_INET6;
+				addr.sin6_addr = in6addr_any; // Bind to all interfaces
+				addr.sin6_port = htons(1111); // Bind to port 
 
-		// Prepare the sockaddr_ll structure
-		memset(&sa, 0, sizeof(struct sockaddr_ll));
-		sa.sll_ifindex = ifr.ifr_ifindex;
-		sa.sll_halen = ETH_ALEN;
-		sa.sll_protocol = htons(ETH_P_IP);
+				// Bind the socket
+				if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+					perror("bind");
+					close(sockfd);
+					return 1;
+				}
 
-		// Destination MAC address...
-		sa.sll_addr[0] = 0xFF;
-		sa.sll_addr[1] = 0xFF;
-		sa.sll_addr[2] = 0xFF;
-		sa.sll_addr[3] = 0xFF;
-		sa.sll_addr[4] = 0xFF;
-		sa.sll_addr[5] = 0xFF;
+				// Zero out the destination address structure
+				memset(&dest_addr, 0, sizeof(dest_addr));
+				dest_addr.sin6_family = AF_INET6;
+				dest_addr.sin6_port = htons(port);
 
-		// Construct Ethernet frame (14 bytes: 6 bytes dest MAC, 6 bytes src MAC, 2 bytes ethertype)
-		memset(buffer, 0, sizeof(buffer));
+				// Convert IPv6 address from text to binary
+				if (inet_pton(AF_INET6, ipv6_addr_str, &dest_addr.sin6_addr) != 1) {
+					perror("inet_pton");
+					close(sockfd);
+					return 1;
+				}
 
-		//sending nack
-		buffer[0] = 1;
-		buffer[1] = *(u char *)d;
-		sendto(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&sa, sizeof(struct sockaddr_ll));
-		close(sockfd);
-		return 0;
+				//sending nack
+				u char seb[2] = {3, ((u char *)d)[1]};
+				sendto(sockfd, &seb, 1, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+				close(sockfd);
+				return 0;
+			}
+			u char pti = ((u char *)d)[1];	//packet indice
+			for (u char pdi=0; pdi<pds; pdi++)	f[pti*pcif + pdi] = ((u char *)d)[pdi+2];
+
+			//p("marked\n");
+			fr[pti] = 1;	//mark packet as received
 	}
-	for (u char pdi=0; pdi<pds; pdi++)	f[((u char *)d)[0]*pcif + pdi] = ((u char *)d)[pdi+1];
-	p("read packet fully\n");	//debugging
-
-	fr[((u char *)d)[0]] = 1;	//mark packet as received
 	return 0;
 }
 
@@ -148,8 +165,8 @@ int main(int arc, char** ars)
 {
 	p("\n");
 
-	if (arc>=4)	fs = atoi(ars[1]), pds = atoi(ars[2]), acc = atoi(ars[3]);
-	pcif = fs/pds, re=1;
+	//if (arc>=4)	fs = atoi(ars[1]), pds = atoi(ars[2]), acc = atoi(ars[3]);
+	re=1;
 	u char _fr[pcif];	fr=_fr;
 	for (u char pti=0; pti<pcif; pti++)	fr[pti]=0;
 	u char _f[fs];	f=_f;
@@ -159,13 +176,58 @@ int main(int arc, char** ars)
 	gfd("rbrk",&fdp);
 	rb = ring_buffer__new(fd, rbcfn, 0,0);
 
+
+	int sockfd;
+	struct sockaddr_in6 dest_addr;
+	const char *ipv6_addr_str = "fe80::5054:ff:fee8:9be9";
+	int port = 1111;
+	struct sockaddr_in6 addr;
+	socklen_t addr_len = sizeof(addr);
+
+	// Create a socket
+	sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
+		perror("socket");
+		return 1;
+	}
+
+	// Zero out the address structure
+	memset(&addr, 0, sizeof(addr));
+	addr.sin6_family = AF_INET6;
+	addr.sin6_addr = in6addr_any; // Bind to all interfaces
+	addr.sin6_port = htons(1111); // Bind to port 
+
+	// Bind the socket
+	if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		perror("bind");
+		close(sockfd);
+		return 1;
+	}
+
+	// Zero out the destination address structure
+	memset(&dest_addr, 0, sizeof(dest_addr));
+	dest_addr.sin6_family = AF_INET6;
+	dest_addr.sin6_port = htons(port);
+
+	// Convert IPv6 address from text to binary
+	if (inet_pton(AF_INET6, ipv6_addr_str, &dest_addr.sin6_addr) != 1) {
+		perror("inet_pton");
+		close(sockfd);
+		return 1;
+	}
+
 	for (en=0; en<re; en++)
 	{
+		p("done, %hhu\n", en);
+		p("waiting for md.\n");
+		while (!mdr)	ring_buffer__poll(rb, 0);
+		p("md receieved\n");
+
 		for (u char pti=0; pti<pcif; pti++)	fr[pti]=0;
 		c:
 		ring_buffer__poll(rb, 0);
 		for (u char pti=0; pti<pcif; pti++)	if (!fr[pti])	goto c;	//if any packet is not received yet
-		// p("done\n");
+		p("done, %hhu\n", en);
 	}
 
 	struct ts t;
@@ -173,7 +235,7 @@ int main(int arc, char** ars)
 	p("finished by \t\t\t%ld%ld\n", t.tv_sec, t.tv_nsec);
 	
 	p("file data:	");
-	for (u char pti=0; pti<fs; pti++) p("%hhu ", f[pti]);
+	for (u char bi=0; bi<fs; bi++) p("%hhu ", f[bi]);
 	p("\n");
 
 	///ya burda datayı random bi şeyler gösteriyor sanırım runtime size array olduğu için problemli bu. Fakat işte debug verileriyle görüyoruz ki veriler doğru paketi falan doğru alıyoruz kernelde ve user space'de. yalnızca okuyamıyoruz.
@@ -181,6 +243,6 @@ int main(int arc, char** ars)
 	return 0;
 }
 /*
-clang RU.c -o RU -lbpf -fno-builtin
-e n2 ./RU 
+gcc RU.c -o RU -lbpf
+sudo ./RU 
 */

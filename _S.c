@@ -77,7 +77,6 @@ int main(int arc, char** ars)
 	}
 
 	printf("UDP packet sent to %s:%d\n", ipv6_addr_str, port);
-	return 0;
 
 	struct ts t0,t1, t;
 
@@ -131,7 +130,7 @@ int main(int arc, char** ars)
 	return 0;
 }
 /*
-sudo ip link set dev ens3 xdpgeneric off
 gcc _S.c -o _S
+sudo ip link set dev ens3 xdpgeneric off
 sudo ./_S 
 */

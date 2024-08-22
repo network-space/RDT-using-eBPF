@@ -19,6 +19,8 @@ packet type: 0 for metadata, 1 for data
 #define p printf
 #define so sizeof
 
+char fs,pds,pcif,re,acc;
+
 //g(et) f(ile) d(escriptor) of ring buffer
 static int gfd(char *name, int **fds)
 {
@@ -78,16 +80,19 @@ int rbcfn(void*c, void*d, size_t s)	//r(ing) b(uffer) c(onsuming) f(unctio)n
 	switch (((u char *)d)[0])
 	{
 		case 0:	//metadata ack
-			p("md ack\n");
+			//p("md ack\n");
 			mdr=1;
 			break;
 		case 2:	//ack
-			p("ack%hhu\n", ((u char *)d)[1] );
+			//p("ack%hhu\n", ((u char *)d)[1] );
 			fa[((u char *)d)[1]]=1;
 			break;
 		case 3:	//nack
-			p("nack%hhu\n", ((u char *)d)[1] );
+			//p("nack%hhu\n", ((u char *)d)[1] );
 			fa[((u char *)d)[1]]=0;
+		case 4:	//nack all
+			//p("nack all\n");
+			for (u char pti=0; pti<pcif; pti++)	fa[pti]=0;
 	}
 	return 0;
 }
@@ -101,7 +106,6 @@ int main(int arc, char** ars)	//argumenty callable
 	int sockfd;
 	p("\n");
 
-	char fs,pds,pcif,re,acc;
 	//fs : f(ile) s(ize)
 	//p(acket) d(ata) s(ize)
 	//p(acket) c(ount) i(n) f(iles)
@@ -153,20 +157,6 @@ int main(int arc, char** ars)	//argumenty callable
 		return 1;
 	}
 	
-	while (!mdr)	//send metadata about file to be sent, so _R is not a variadic executable
-	{
-		u char md[4] = {0,fs,pds,acc};	//metadata
-		if (sendto(sockfd, md, sizeof(md), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
-			perror("sendto");
-			close(sockfd);
-			return 1;
-		}
-		ring_buffer__poll(rb, 0);
-	}
-	// Send the UDP packet
-	p("metadata sent\n");
-
-
 	#define sebl (2+pds)
 	#define rebl (1+acc)
 	u char seb[sebl],reb[rebl];	memset(seb, 0, sizeof(seb));	memset(reb, 0, sizeof(reb));
@@ -183,10 +173,26 @@ int main(int arc, char** ars)	//argumenty callable
 	for (u char pti=0; pti<pcif; pti++)	for (u char pdi=0; pdi<pds; pdi++)	p("%d ", f[pti][pdi]);
 	p("\n");
 
+
 	tai(t0);
 	p("starting to send %hhu files at\t\t\t%ld%ld\n", re, t0.tv_sec, t0.tv_nsec);
+
+
 	for (u char en=0; en<re; en++)	//for each repetition of experiment
 	{
+		while (!mdr)	//send metadata about file to be sent, so _R is not a variadic executable
+		{
+			u char md[4] = {0,fs,pds,acc};	//metadata
+			if (sendto(sockfd, md, sizeof(md), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0) {
+				perror("sendto");
+				close(sockfd);
+				return 1;
+			}
+			ring_buffer__poll(rb, 0);
+		}
+		// Send the UDP packet
+		p("metadata sent\n");
+
 		for (u char pti=0; pti<pcif; pti++)	//for each paocket in the file
 		//pti: packet indice
 		{
@@ -194,7 +200,7 @@ int main(int arc, char** ars)	//argumenty callable
 			seb[1]=pti;	
 			u char pdi=0;	//packet data indice
 			for (; pdi<pds; pdi++)	seb[2+pdi]=f[pti][pdi];
-			p("sent %d\n", seb[2]);	//shall remove... For debugging 
+			//p("sent %d\n", seb[2]);	//shall remove... For debugging 
 			sendto(sockfd, seb, sizeof(seb), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 		}
 

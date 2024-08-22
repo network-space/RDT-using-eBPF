@@ -23,7 +23,7 @@ u char ptc0,ptc1;	//algoritma için gerekli. Son paketler alındığında kümü
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 1);
+	__uint(max_entries, 2);
 } rbrk SEC(".maps");
 
 u char pl;	//payload (not sure if it is used)
@@ -40,12 +40,12 @@ u char aca2[10];	//ack array debug
 u char fs,pds,acc;
 
 //dynamic allocation is not allowed
-u char d[2+255], payload0;
+u char payload0;
 u char aca[222+255];	//ack array
 //used for cumulative ack
 //aca[0] is the number of acks inside array. The rest are packet indices
 
-SEC("xdp")
+SEC("s")
 int pm(struct xdp_md *c)
 {
 	t = bpfktgtains();
@@ -78,15 +78,19 @@ int pm(struct xdp_md *c)
 				ptac(i-16);
 				((u char *)(c->d))[i-16] = s;
 			}
+			u char md[4] = {0,fs,pds,acc};
+			bpf_ringbuf_output(&rbrk, md, sizeof(md), 0);	//send metadata to userspace
 			return XDP_TX;
 		case 1:	//data
 			ptc1++;
-			for (u char pti=0; pti<pds; pti++)
+			static u char pl[2+255];
+			u char pts = pds+2;	//packet size
+			for (u char pti=0; pti<pts; pti++)
 			{
-				ptac(63+pti);
-				d[pti] = ((u char *)(c->d))[63+pti];
+				ptac(62+pti);
+				pl[pti] = ((u char *)(c->d))[62+pti];
 			}
-			bpf_ringbuf_output(&rbrk, d, pds, 0);	//send payload to userspace
+			bpf_ringbuf_output(&rbrk, pl, pts, 0);	//send payload to userspace
 
 			for (u char i=0,s; i<6; i++)	//swap MAC a.
 			{
@@ -115,12 +119,17 @@ int pm(struct xdp_md *c)
 			{
 				ptac(62);
 				((u char *)(c->d))[62] = 2;	//ack
-				aca0 = aca[0];
-				for (u char pti=0; pti < acc+1; pti++)
+				u char _acc = acc+1;	//if you do not do this verifier will complain about some horribly long recursive kuruntu
+				for (u char acci=0; acci < _acc; acci++)
 				{
-					void *end = c->de,*begin=c->d;
-					bpf_xdp_adjust_tail(c, 63+acc - (end-begin));
-					((u char *)(c->d))[63+pti] = aca[pti];
+					if ((void*)c->d + 63+acci +1 > (void*)c->de)
+					{
+						bpf_xdp_adjust_tail(c,1);
+						ptac(63+acci);
+					}
+					ptac(63+acci);
+					if (sizeof(aca) <= acci)	goto e;
+					((u char *)(c->d))[63+acci] = aca[acci];
 				}
 				for (u char pti=0; pti<65; pti++)
 				{
@@ -141,10 +150,10 @@ int pm(struct xdp_md *c)
 	e:	return XDP_PASS;
 }
 /*
+clang -target bpf -c RK.c -o RK.o -g -O1
 ixdpt="ens3 xdpgeneric"
 sudo ip link set dev $ixdpt off
-clang -target bpf -c RK.c -o RK.o -g -O1
-sudo ip link set dev $ixdpt obj RK.o sec xdp
+sudo ip link set dev $ixdpt obj RK.o sec s
 
 sudo bpftool map dump name RK.bss
 */

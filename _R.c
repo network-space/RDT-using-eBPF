@@ -125,7 +125,7 @@ int main() {
 	return 0;
 }
 /*-fsched-dep-count-heuristic
-sudo ip link set dev eth2 xdpgeneric off
 gcc _R.c -o _R
+sudo ip link set dev ens3 xdpgeneric off
 sudo ./_R 
 */

@@ -29,7 +29,7 @@ struct
 
 // Nanosaniye cinsinden an ölçümü ve debugging için global variabls
 u l int t, t0, t1;
-u char ptc0,ptc2,ptc3; // packet counts by type
+u char ptc0,ptc2,ptc3,ptc4; // packet counts by type
 u char d[2 + 255];
 u char fs, pds, acc;
 unsigned char anan[1000];
@@ -90,12 +90,23 @@ int pm(struct xdp_md *c) // p(rogra)m.	c(ontext)
 		break;
 	case 3: // nack
 		ptc3++;
-		goto e;
-		u char rbo[2] = {3, 0};
-		ptac(63);
-		u char pti = ((u char *)(c->d))[63];
-		rbo[1] = pti;
-		bpf_ringbuf_output(&rbsik, rbo, 2, 0);
+		{
+			u char rbo[2] = {3, 0};
+			ptac(63);
+			u char pti = ((u char *)(c->d))[63];
+			rbo[1] = pti;
+			bpf_ringbuf_output(&rbsik, rbo, 2, 0);
+		}
+		break;
+	case 4:
+		ptc4++;
+		{
+			u char rbo[2] = {4, 0};
+			ptac(63);
+			u char pti = ((u char *)(c->d))[63];
+			rbo[1] = pti;
+			bpf_ringbuf_output(&rbsik, rbo, 2, 0);
+		}
 	}
 	goto e;
 
@@ -108,9 +119,9 @@ e:
 	return XDP_PASS;
 }
 /*
+clang -target bpf -c SKI.c -o SKI.o -g -O1
 ixdpt="ens3 xdpgeneric"
 sudo ip link set dev $ixdpt off
-clang -target bpf -c SKI.c -o SKI.o -g -O1
 sudo ip link set dev $ixdpt obj SKI.o sec s
 
 sudo bpftool map dump name SKI.bss
