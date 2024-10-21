@@ -5,8 +5,8 @@ Hereby we propose a system for RDT using eBPF. We suggest that this approach not
 
 ## Contributors
 
-- [ahmet-umut](https://github.com/ahmet-umut)
-- [sawhi-qbr](https://github.com/sawhi-qbr)
+- [Ahmet Umut AKKAŞ](https://github.com/ahmet-umut)
+- [Safa KABAR](https://github.com/sawhiqbr)
 
 ## Branches
 
